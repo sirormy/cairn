@@ -1,0 +1,20 @@
+{
+  "name": "opensource-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "收集箱 Agent —— 内容收录与调研管理系统",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"pnpm --filter @app/server dev\" \"pnpm --filter @app/web dev\"",
+    "build": "pnpm --filter @app/server typecheck && pnpm --filter @app/web typecheck && pnpm --filter @app/web build && pnpm --filter @app/server build",
+    "start": "pnpm --filter @app/server start",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
