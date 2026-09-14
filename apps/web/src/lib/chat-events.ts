@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatSSE } from '@app/shared';
+import type { ChatMessage, ChatSSE } from '@cairn/shared';
 
 /**
  * 把一条 Chat SSE 事件应用到消息列表（纯函数，便于单测）。

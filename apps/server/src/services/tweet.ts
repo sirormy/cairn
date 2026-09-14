@@ -1,5 +1,5 @@
-import { config } from '../config.js';
 import { BROWSER_UA, resolveShortLink } from './net.js';
+import { loadXCredentials } from './cookies.js';
 
 const SYNDICATION_URL = 'https://cdn.syndication.twimg.com/tweet-result';
 
@@ -7,6 +7,14 @@ export interface TweetMedia {
   type: 'image' | 'video' | 'gif';
   url: string;
   alt: string;
+}
+
+/** X 长文（article）：推文正文只是一个指向它的链接，标题与预览来自 syndication */
+export interface TweetArticle {
+  id: string;
+  title: string;
+  previewText: string;
+  coverUrl: string | null;
 }
 
 export interface TweetData {
@@ -25,8 +33,33 @@ export interface TweetData {
     url: string;
   } | null;
   inReplyTo: { id: string; handle: string } | null;
+  article: TweetArticle | null;
   /** 抓取方式（用于诊断） */
   source: 'syndication' | 'oembed' | 'cookie';
+}
+
+export function articleUrl(id: string): string {
+  return `https://x.com/i/article/${id}`;
+}
+
+/**
+ * 清洗推文正文：媒体占位 t.co 链接直接移除（媒体单独渲染），
+ * 其余 t.co 短链替换为 entities.urls 里的展开链接。
+ * 传给 LLM 与缓存的正文不应再出现未展开的 t.co。
+ */
+export function cleanTweetText(
+  text: string,
+  urlEntities: Array<{ url?: string; expanded_url?: string }>,
+  mediaEntities: Array<{ url?: string }>,
+): string {
+  let out = text;
+  for (const m of mediaEntities) {
+    if (m?.url) out = out.split(m.url).join('');
+  }
+  for (const u of urlEntities) {
+    if (u?.url && u.expanded_url) out = out.split(u.url).join(u.expanded_url);
+  }
+  return out.trim();
 }
 
 /** syndication 接口的 token，按公开算法由推文 id 计算 */
@@ -72,7 +105,7 @@ export function isTweetUrl(raw: string): boolean {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-function mapSyndicationTweet(t: any, source: TweetData['source']): TweetData {
+export function mapSyndicationTweet(t: any, source: TweetData['source']): TweetData {
   const handle: string = t.user?.screen_name ?? '';
   const media: TweetMedia[] = (t.mediaDetails ?? []).map((m: any) => ({
     type: m.type === 'video' ? 'video' : m.type === 'animated_gif' ? 'gif' : 'image',
@@ -87,7 +120,9 @@ function mapSyndicationTweet(t: any, source: TweetData['source']): TweetData {
       handle,
       avatar: t.user?.profile_image_url_https ?? '',
     },
-    text: t.text ?? '',
+    // 正文清洗：移除媒体占位 t.co、展开其余 t.co 短链
+    // （article 分享推文的正文因此变成指向文章页的真实链接）
+    text: cleanTweetText(t.text ?? '', t.entities?.urls ?? [], t.entities?.media ?? []),
     createdAt: t.created_at ?? '',
     lang: t.lang ?? '',
     metrics: {
@@ -100,13 +135,96 @@ function mapSyndicationTweet(t: any, source: TweetData['source']): TweetData {
       ? {
           author: t.quoted_tweet.user?.name ?? '',
           handle: t.quoted_tweet.user?.screen_name ?? '',
-          text: t.quoted_tweet.text ?? '',
+          text: cleanTweetText(
+            t.quoted_tweet.text ?? '',
+            t.quoted_tweet.entities?.urls ?? [],
+            t.quoted_tweet.entities?.media ?? [],
+          ),
           url: `https://x.com/${t.quoted_tweet.user?.screen_name ?? ''}/status/${t.quoted_tweet.id_str ?? ''}`,
         }
       : null,
     inReplyTo: t.in_reply_to_status_id_str
       ? { id: t.in_reply_to_status_id_str, handle: t.in_reply_to_screen_name ?? '' }
       : null,
+    article: mapSyndicationArticle(t.article),
+    source,
+  };
+}
+
+/** syndication 的 article 节点 → 精简结构；字段缺失时返回 null（不臆造） */
+function mapSyndicationArticle(a: any): TweetArticle | null {
+  if (!a?.rest_id || !a?.title) return null;
+  return {
+    id: String(a.rest_id),
+    title: String(a.title),
+    previewText: String(a.preview_text ?? ''),
+    coverUrl: a.cover_media?.media_info?.original_img_url ?? null,
+  };
+}
+
+/* ── GraphQL（TweetResultByRestId / Bookmarks 共用的 result 形态）───────── */
+
+/**
+ * 受限可见性推文（被标记敏感内容等）会多包一层 TweetWithVisibilityResults，
+ * 真正的推文挂在 `.tweet` 上；普通推文原样返回。
+ */
+export function unwrapTweetResult(raw: any): any {
+  return raw?.tweet ?? raw;
+}
+
+/**
+ * GraphQL 推文 result → TweetData。
+ * 2026 起用户字段从 `user.legacy` 迁到 `user.core` + `user.avatar`，
+ * X 长文在 `article.article_results.result`（仅当 features 开启 articles_preview）。
+ */
+export function mapGraphqlTweet(raw: any, source: TweetData['source']): TweetData {
+  const result = unwrapTweetResult(raw);
+  const legacy = result?.legacy;
+  const user = result?.core?.user_results?.result;
+  if (!legacy || !user) throw new Error('GraphQL 推文结构异常');
+  const handle: string = user.core?.screen_name ?? user.legacy?.screen_name ?? '';
+  const media: TweetMedia[] = (legacy.entities?.media ?? []).map((m: any) => ({
+    type: m.type === 'video' ? 'video' : m.type === 'animated_gif' ? 'gif' : 'image',
+    url: m.media_url_https ?? '',
+    alt: m.ext_alt_text ?? '',
+  }));
+  const quotedResult = unwrapTweetResult(legacy.quoted_status_result?.result);
+  return {
+    id: legacy.id_str ?? result.rest_id ?? '',
+    url: `https://x.com/${handle}/status/${legacy.id_str ?? result.rest_id ?? ''}`,
+    author: {
+      name: user.core?.name ?? user.legacy?.name ?? '',
+      handle,
+      avatar: user.avatar?.image_url ?? user.legacy?.profile_image_url_https ?? '',
+    },
+    text: cleanTweetText(legacy.full_text ?? '', legacy.entities?.urls ?? [], legacy.entities?.media ?? []),
+    createdAt: legacy.created_at ?? '',
+    lang: legacy.lang ?? '',
+    metrics: {
+      replies: legacy.reply_count ?? legacy.conversation_count ?? 0,
+      reposts: legacy.retweet_count ?? 0,
+      likes: legacy.favorite_count ?? 0,
+    },
+    media,
+    quoted: quotedResult
+      ? {
+          author: quotedResult.core?.user_results?.result?.core?.name
+            ?? quotedResult.core?.user_results?.result?.legacy?.name ?? '',
+          handle: quotedResult.core?.user_results?.result?.core?.screen_name
+            ?? quotedResult.core?.user_results?.result?.legacy?.screen_name ?? '',
+          text: cleanTweetText(
+            quotedResult.legacy?.full_text ?? '',
+            quotedResult.legacy?.entities?.urls ?? [],
+            quotedResult.legacy?.entities?.media ?? [],
+          ),
+          url: `https://x.com/${quotedResult.core?.user_results?.result?.core?.screen_name
+            ?? quotedResult.core?.user_results?.result?.legacy?.screen_name ?? ''}/status/${quotedResult.legacy?.id_str ?? quotedResult.rest_id ?? ''}`,
+        }
+      : null,
+    inReplyTo: legacy.in_reply_to_status_id_str
+      ? { id: legacy.in_reply_to_status_id_str, handle: legacy.in_reply_to_screen_name ?? '' }
+      : null,
+    article: mapSyndicationArticle(result.article?.article_results?.result),
     source,
   };
 }
@@ -159,6 +277,7 @@ async function fetchViaOembed(url: string): Promise<TweetData | null> {
     media: [],
     quoted: null,
     inReplyTo: null,
+    article: null,
     source: 'oembed',
   };
 }
@@ -206,9 +325,10 @@ const GQL_FEATURES = process.env.X_GQL_FEATURES ?? JSON.stringify({
   communities_web_enable_tweet_community_results_fetch: false,
 });
 
-/** 第三层：登录 Cookie 兜底（需 .env 配置 X_AUTH_TOKEN 与 X_CT0） */
+/** 第三层：登录 Cookie 兜底（x.cookie.json 或 .env 的 X_AUTH_TOKEN / X_CT0） */
 async function fetchViaCookie(id: string): Promise<TweetData | null> {
-  if (!config.xAuthToken || !config.xCt0) return null;
+  const cred = loadXCredentials();
+  if (!cred) return null;
   const variables = encodeURIComponent(
     JSON.stringify({
       tweetId: id,
@@ -222,8 +342,9 @@ async function fetchViaCookie(id: string): Promise<TweetData | null> {
     {
       headers: {
         authorization: `Bearer ${X_BEARER}`,
-        cookie: `auth_token=${config.xAuthToken}; ct0=${config.xCt0}`,
-        'x-csrf-token': config.xCt0,
+        cookie: cred.cookieHeader,
+        'x-csrf-token': cred.ct0,
+        'x-twitter-auth-type': 'OAuth2Session',
         'user-agent': BROWSER_UA,
         accept: 'application/json',
       },
@@ -232,35 +353,11 @@ async function fetchViaCookie(id: string): Promise<TweetData | null> {
   );
   if (!res.ok) throw new Error(`Cookie 兜底接口返回 HTTP ${res.status}`);
   const body = (await res.json()) as any;
-  const result = body?.data?.tweetResult?.result;
-  const legacy = result?.legacy;
-  const user = result?.core?.user_results?.result?.legacy;
-  if (!legacy || !user) throw new Error('Cookie 兜底接口返回结构异常（queryId 可能过期，可在 .env 配置 X_GQL_QUERY_ID）');
-  const handle: string = user.screen_name ?? '';
-  const media: TweetMedia[] = (legacy.entities?.media ?? []).map((m: any) => ({
-    type: m.type === 'video' ? 'video' : m.type === 'animated_gif' ? 'gif' : 'image',
-    url: m.media_url_https ?? '',
-    alt: m.ext_alt_text ?? '',
-  }));
-  return {
-    id: legacy.id_str ?? id,
-    url: `https://x.com/${handle}/status/${legacy.id_str ?? id}`,
-    author: { name: user.name ?? '', handle, avatar: user.profile_image_url_https ?? '' },
-    text: legacy.full_text ?? '',
-    createdAt: legacy.created_at ?? '',
-    lang: legacy.lang ?? '',
-    metrics: {
-      replies: legacy.reply_count ?? legacy.conversation_count ?? 0,
-      reposts: legacy.retweet_count ?? 0,
-      likes: legacy.favorite_count ?? 0,
-    },
-    media,
-    quoted: null,
-    inReplyTo: legacy.in_reply_to_status_id_str
-      ? { id: legacy.in_reply_to_status_id_str, handle: legacy.in_reply_to_screen_name ?? '' }
-      : null,
-    source: 'cookie',
-  };
+  const result = unwrapTweetResult(body?.data?.tweetResult?.result);
+  if (!result?.legacy) {
+    throw new Error('Cookie 兜底接口返回结构异常（queryId 可能过期，可在 .env 配置 X_GQL_QUERY_ID）');
+  }
+  return mapGraphqlTweet(result, 'cookie');
 }
 
 /**
@@ -274,7 +371,11 @@ export async function fetchTweet(rawUrl: string): Promise<TweetData> {
     url = resolved;
   }
   const parsed = parseTweetUrl(url);
-  if (!parsed) throw new Error('不是有效的推文链接（需 x.com / twitter.com 的 status 链接）');
+  if (!parsed) {
+    // t.co 解析后指向的不是推文（如 X 长文页），把目标告诉调用方便于降级
+    if (url !== rawUrl.trim()) throw new Error(`t.co 指向的不是推文链接：${url}`);
+    throw new Error('不是有效的推文链接（需 x.com / twitter.com 的 status 链接）');
+  }
 
   const attempts: Array<() => Promise<TweetData | null>> = [
     () => fetchViaSyndication(parsed.id),
@@ -301,6 +402,16 @@ export function buildTweetMarkdown(t: TweetData): string {
   if (t.createdAt) lines.push(`发布于 ${t.createdAt}`);
   lines.push('');
   lines.push(t.text);
+  if (t.article) {
+    // X 长文：正文只有一个链接，标题与预览来自 syndication，全文需登录才能拿到
+    lines.push('');
+    lines.push(`**长文：${t.article.title}**`);
+    lines.push('');
+    if (t.article.previewText) lines.push(t.article.previewText);
+    if (t.article.coverUrl) lines.push(`\n![${t.article.title}](${t.article.coverUrl})`);
+    lines.push('');
+    lines.push(`[阅读全文](${articleUrl(t.article.id)})`);
+  }
   if (t.quoted) {
     lines.push('');
     lines.push(`> 引用 @${t.quoted.handle}：${t.quoted.text}`);

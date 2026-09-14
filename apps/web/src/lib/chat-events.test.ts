@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage, ChatSSE, Item } from '@app/shared';
+import type { ChatMessage, ChatSSE, Item } from '@cairn/shared';
 import { applyChatEvent } from './chat-events';
 
 const fakeItem = (id: string) => ({ id }) as unknown as Item;

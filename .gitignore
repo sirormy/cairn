@@ -1,7 +1,23 @@
 node_modules/
 dist/
 data/
-.env
-.env.local
 *.log
 .DS_Store
+*.tsbuildinfo
+coverage/
+
+# 环境变量：.env / .env.local / .env.production 一律不入库，只放行模板
+.env*
+!.env.example
+
+# 编辑器 / IDE / 本地 agent 配置
+.idea/
+*.iml
+.claude/
+
+# X 登录 cookie（书签导入用），含 auth_token，绝不入库
+x.cookie.json
+
+# 部分用户全局 gitignore 会排除 .github/workflows，CI 配置必须入库，这里反向放行
+!.github/
+!.github/workflows/

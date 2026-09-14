@@ -1,5 +1,5 @@
 /**
- * 收集箱 Agent —— 前后端共享类型（仅类型，无运行时代码）
+ * Cairn —— 前后端共享类型（仅类型，无运行时代码）
  */
 
 export type ItemType = 'tweet' | 'article' | 'website' | 'github';

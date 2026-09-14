@@ -28,8 +28,11 @@ export function isPrivateAddress(ip: string): boolean {
       inCidr('172.16.0.0/12') ||
       inCidr('192.0.0.0/24') ||
       inCidr('192.168.0.0/16') ||
-      inCidr('198.18.0.0/15') ||
       inCidr('224.0.0.0/4')
+      // 注意：刻意不拦 198.18.0.0/15（benchmark 网段）。Clash/Mihomo 等代理的
+      // fake-ip 模式会把所有 DNS 应答替换成该网段，拦截它会导致代理机器上
+      // 一切抓取失败；这是本机单人工具，真实 SSRF 向量（回环/RFC1918/
+      // 链路本地/CGNAT/组播）仍在拦截列表里。
     );
   }
   if (net.isIPv6(ip)) {
@@ -169,7 +172,19 @@ export async function safeFetch(
   throw new Error('重定向次数过多');
 }
 
-/** 解析 t.co 短链（跟随重定向，返回最终 URL），失败返回 null */
+/** 从短链中转页 HTML 解析 meta refresh 目标地址，失败返回 null */
+export function parseMetaRefresh(html: string): string | null {
+  const meta = html.match(/<meta[^>]*http-equiv=["']?refresh["']?[^>]*>/i);
+  const content = meta?.[0].match(/content=["']?([^"'>]+)["']?/i)?.[1] ?? '';
+  const target = content.match(/URL=(\S+)/i)?.[1];
+  return target ?? null;
+}
+
+/**
+ * 解析 t.co 短链，返回最终 URL，失败返回 null。
+ * t.co 已不再发 301（HEAD/GET 都返回 200），改为返回带
+ * `<meta http-equiv="refresh">` 跳转的中转页，两种都要处理。
+ */
 export async function resolveShortLink(raw: string): Promise<string | null> {
   let url = raw;
   for (let i = 0; i < 4; i++) {
@@ -181,13 +196,22 @@ export async function resolveShortLink(raw: string): Promise<string | null> {
     }
     if (!/(^|\.)t\.co$/.test(u.hostname)) return url;
     const res = await fetch(url, {
-      method: 'HEAD',
       redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
+      headers: { 'user-agent': BROWSER_UA },
     }).catch(() => null);
-    const loc = res?.headers.get('location');
-    if (!res || !loc) return null;
-    url = new URL(loc, url).toString();
+    if (!res) return null;
+    const loc = res.headers.get('location');
+    if (loc) {
+      url = new URL(loc, url).toString();
+      continue;
+    }
+    const target = parseMetaRefresh(await res.text().catch(() => ''));
+    if (target) {
+      url = new URL(target, url).toString();
+      continue;
+    }
+    return null;
   }
   return null;
 }

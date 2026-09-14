@@ -1,5 +1,5 @@
 import { Feather, FileText, GitFork, Globe } from 'lucide-react';
-import type { ItemType } from '@app/shared';
+import type { ItemType } from '@cairn/shared';
 
 export const TYPE_META: Record<
   ItemType,

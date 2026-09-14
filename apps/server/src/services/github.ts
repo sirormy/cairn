@@ -67,7 +67,7 @@ function ghHeaders(accept: string): Record<string, string> {
   const h: Record<string, string> = {
     accept,
     'x-github-api-version': '2022-11-28',
-    'user-agent': 'opensource-agent',
+    'user-agent': 'cairn',
   };
   if (config.githubToken) h.authorization = `Bearer ${config.githubToken}`;
   return h;
