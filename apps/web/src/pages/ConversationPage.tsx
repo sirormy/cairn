@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { Pencil, Sparkles } from 'lucide-react';
-import type { ChatMessage, ChatSSE } from '@app/shared';
+import type { ChatMessage, ChatSSE } from '@cairn/shared';
 import { ChatInput } from '../components/ChatInput';
 import { Markdown } from '../components/Markdown';
 import { ToolCallCard } from '../components/ToolCallCard';

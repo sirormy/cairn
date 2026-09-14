@@ -1,0 +1,43 @@
+name: Bug 反馈
+description: 报告一个可复现的问题
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索是否有同类 issue。
+
+        ⚠️ **不要**把 `x.cookie.json`、`auth_token`、API key 或 `.env` 内容贴进 issue。
+  - type: textarea
+    id: what
+    attributes:
+      label: 问题描述
+      description: 发生了什么？你预期会发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 在对话页粘贴 https://x.com/...
+        2. Agent 调用 fetch_tweet
+        3. 看到报错「...」
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      description: 操作系统、Node 版本；抓取类问题请说明是否走代理
+      placeholder: macOS 15 / Node 22.20 / 走 Clash fake-ip 代理
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 报错信息
+      description: 服务端控制台输出或页面提示（记得脱敏）
+      render: shell
+    validations:
+      required: false

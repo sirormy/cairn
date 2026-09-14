@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatSSE } from '@app/shared';
+import type { ChatSSE } from '@cairn/shared';
 import { streamChat } from './api';
 
 /** 构造一个分块 SSE Response：chunks 按给定切分，模拟网络分帧 */

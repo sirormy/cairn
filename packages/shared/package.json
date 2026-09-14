@@ -1,5 +1,5 @@
 {
-  "name": "@app/shared",
+  "name": "@cairn/shared",
   "version": "0.1.0",
   "private": true,
   "types": "./index.d.ts"

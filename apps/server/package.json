@@ -1,5 +1,5 @@
 {
-  "name": "@app/server",
+  "name": "@cairn/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@app/shared": "workspace:*",
+    "@cairn/shared": "workspace:*",
     "@earendil-works/pi-agent-core": "^0.85.1",
     "@earendil-works/pi-ai": "^0.85.1",
     "@hono/node-server": "^2.1.1",

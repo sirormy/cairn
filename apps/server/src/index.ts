@@ -52,8 +52,8 @@ if (existsSync(config.webDist)) {
   });
 }
 
-serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`收集箱 Agent 服务已启动: http://localhost:${info.port}`);
+serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
+  console.log(`Cairn 服务已启动: http://${config.host}:${info.port}`);
   if (llm.error) {
     console.warn(`⚠ LLM 未配置：${llm.error}`);
   }

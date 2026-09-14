@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ConversationSummary, Item, ItemType } from '@app/shared';
+import type { ConversationSummary, Item, ItemType } from '@cairn/shared';
 
 export interface AgentMessageRow {
   id: number;
@@ -101,6 +101,8 @@ export interface AppDb {
   conversationHasMessages(conversationId: string): boolean;
   upsertItem(input: ItemInput): { item: Item; created: boolean };
   getItem(id: string): Item | null;
+  /** 按 URL 查条目 id（导入去重用），不存在返回 null */
+  findItemByUrl(url: string): string | null;
   listItems(opts?: {
     type?: ItemType;
     q?: string;
@@ -345,6 +347,11 @@ export function createDb(dataDir: string): AppDb {
     getItem(id) {
       const row = stmt.getItemRow.get(id) as ItemRow | undefined;
       return row ? toItem(row) : null;
+    },
+
+    findItemByUrl(url) {
+      const row = stmt.findItemByUrl.get(url) as { id: string } | undefined;
+      return row?.id ?? null;
     },
 
     listItems(opts = {}) {

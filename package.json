@@ -1,16 +1,26 @@
 {
-  "name": "opensource-agent",
+  "name": "cairn",
   "version": "0.1.0",
   "private": true,
-  "description": "收集箱 Agent —— 内容收录与调研管理系统",
+  "description": "Cairn —— 把链接堆成你的知识路标：Agent 驱动的个人内容收录与调研系统",
+  "license": "MIT",
+  "keywords": [
+    "ai-agent",
+    "bookmarks",
+    "knowledge-base",
+    "read-it-later",
+    "llm",
+    "sqlite",
+    "self-hosted"
+  ],
   "packageManager": "pnpm@10.11.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,green \"pnpm --filter @app/server dev\" \"pnpm --filter @app/web dev\"",
-    "build": "pnpm --filter @app/server typecheck && pnpm --filter @app/web typecheck && pnpm --filter @app/web build && pnpm --filter @app/server build",
-    "start": "pnpm --filter @app/server start",
+    "dev": "concurrently -n server,web -c blue,green \"pnpm --filter @cairn/server dev\" \"pnpm --filter @cairn/web dev\"",
+    "build": "pnpm --filter @cairn/server typecheck && pnpm --filter @cairn/web typecheck && pnpm --filter @cairn/web build && pnpm --filter @cairn/server build",
+    "start": "pnpm --filter @cairn/server start",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { Inbox, Search, X } from 'lucide-react';
-import type { Item, ItemType } from '@app/shared';
+import { BookmarkCheck, Inbox, Loader2, Search, X } from 'lucide-react';
+import type { Item, ItemType } from '@cairn/shared';
 import { TypeBadge, TYPE_META } from '../components/TypeBadge';
 import { api } from '../lib/api';
 import { hostOf, relativeTime } from '../lib/format';
@@ -22,6 +22,9 @@ export function ItemsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState(q);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const [importFailed, setImportFailed] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchItems = useCallback(
@@ -50,6 +53,32 @@ export function ItemsPage() {
   useEffect(() => {
     void fetchItems(0);
   }, [fetchItems]);
+
+  // 导入耗时较长，期间用户可能切了标签页 / 改了搜索词；
+  // 用 ref 持有最新的 fetchItems，保证导入结束后刷新的是当前筛选条件
+  const fetchItemsRef = useRef(fetchItems);
+  useEffect(() => {
+    fetchItemsRef.current = fetchItems;
+  }, [fetchItems]);
+
+  const runImport = useCallback(async () => {
+    if (importing) return;
+    if (!window.confirm('从 X 书签导入全部收藏推文？已收录的链接会自动跳过。')) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportFailed(false);
+    try {
+      const r = await api.importXBookmarks();
+      setImportResult(`书签导入完成：新增 ${r.imported} 条，跳过已收录 ${r.skipped} 条${r.failed ? `，失败 ${r.failed} 条` : ''}`);
+      setImportFailed(r.failed > 0);
+      await Promise.all([fetchItemsRef.current(0), api.listTags().then(setTags).catch(() => setTags([]))]);
+    } catch (e) {
+      setImportResult(e instanceof Error ? e.message : '书签导入失败');
+      setImportFailed(true);
+    } finally {
+      setImporting(false);
+    }
+  }, [importing]);
 
   useEffect(() => {
     api
@@ -86,7 +115,24 @@ export function ItemsPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-base font-semibold">收录列表</h1>
           <span className="text-xs text-zinc-400">{total} 条</span>
+          <div className="flex-1" />
+          <button
+            type="button"
+            disabled={importing}
+            onClick={() => void runImport()}
+            title="用根目录 x.cookie.json 的登录态拉取 X 书签并收录"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-700 transition hover:border-zinc-300 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {importing ? <Loader2 size={13} className="animate-spin" /> : <BookmarkCheck size={13} />}
+            {importing ? '导入中…' : '从 X 书签导入'}
+          </button>
         </div>
+
+        {importResult && (
+          <p className={`rounded-lg border px-3 py-2 text-xs ${importFailed ? 'border-red-200 bg-red-50 text-red-600' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+            {importResult}
+          </p>
+        )}
 
         <div className="flex items-center gap-1.5">
           {(['all', 'tweet', 'article', 'website', 'github'] as const).map((t) => (

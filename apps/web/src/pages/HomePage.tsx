@@ -30,7 +30,7 @@ export function HomePage() {
           <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
             <Sparkles size={24} />
           </span>
-          <h1 className="text-2xl font-semibold tracking-tight">收集箱</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Cairn</h1>
           <p className="mt-2 text-sm text-zinc-500">
             粘贴链接（推文 / 文章 / GitHub / 官网）自动收录与调研，或直接提问
           </p>

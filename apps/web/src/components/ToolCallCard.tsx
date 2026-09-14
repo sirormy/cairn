@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ChevronDown, Feather, GitFork, Globe, LoaderCircle, Save, Search, X } from 'lucide-react';
-import type { ToolCallView } from '@app/shared';
+import type { ToolCallView } from '@cairn/shared';
 
 const TOOL_META: Record<string, { icon: typeof Globe; label: string }> = {
   fetch_webpage: { icon: Globe, label: '抓取网页' },

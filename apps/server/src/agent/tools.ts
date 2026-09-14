@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { Type, type Static } from '@earendil-works/pi-ai';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import type { Item, ItemType } from '@app/shared';
+import type { Item, ItemType } from '@cairn/shared';
 import type { AppDb } from '../db.js';
 import type { ContentCache } from '../services/content-cache.js';
 import { extractWebpage } from '../services/extract.js';
@@ -105,7 +105,8 @@ export function buildTools(ctx: ToolContext): AgentTool<any, any>[] {
   const fetchTweetTool: AgentTool<typeof TweetUrlParam, { url: string }> = {
     name: 'fetch_tweet',
     label: '抓取推文',
-    description: '抓取一条 X/Twitter 推文的内容（作者、正文、媒体、互动数据），必要时自动处理 t.co 短链。',
+    description:
+      '抓取一条 X/Twitter 推文的内容（作者、正文、媒体、互动数据），必要时自动处理 t.co 短链。X 长文（article）只能取到标题与预览，正文为指向全文的链接。',
     parameters: TweetUrlParam,
     execute: async (_callId, params: Static<typeof TweetUrlParam>) => {
       const tweet = await fetchTweet(params.url);
@@ -122,6 +123,7 @@ export function buildTools(ctx: ToolContext): AgentTool<any, any>[] {
           lang: tweet.lang,
           inReplyTo: tweet.inReplyTo,
           source: tweet.source,
+          article: tweet.article,
         },
         savedAt: Date.now(),
       });
@@ -134,6 +136,7 @@ export function buildTools(ctx: ToolContext): AgentTool<any, any>[] {
               author: tweet.author,
               postedAt: tweet.createdAt,
               metrics: tweet.metrics,
+              article: tweet.article,
               markdown: truncate(markdown, 16_000),
             }),
           },

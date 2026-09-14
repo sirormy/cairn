@@ -1,6 +1,6 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentEvent, AgentMessage } from '@earendil-works/pi-agent-core';
-import type { Item } from '@app/shared';
+import type { Item } from '@cairn/shared';
 import type { AgentMessageRow, AppDb } from '../db.js';
 import type { ContentCache } from '../services/content-cache.js';
 import type { LlmSetup } from './models.js';

@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolCallView } from '@app/shared';
+import type { ChatMessage, ToolCallView } from '@cairn/shared';
 
 /**
  * 将 DB 中的 AgentMessage 原始 JSON 行规整为前端视图模型：

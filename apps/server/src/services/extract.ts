@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 import TurndownService from 'turndown';
-import { safeFetch } from './net.js';
+import { safeFetch, resolveShortLink } from './net.js';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -72,7 +72,19 @@ export function extractFromHtml(html: string, url: string): WebpageContent {
 }
 
 export async function extractWebpage(rawUrl: string): Promise<WebpageContent> {
-  const res = await safeFetch(rawUrl);
+  let url = rawUrl.trim();
+  // t.co 已改为 200 中转页（不再 301），safeFetch 跟不了，先解析出真实地址
+  let host: string | null = null;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    /* 无效链接交给 safeFetch 报错 */
+  }
+  if (host && /(^|\.)t\.co$/.test(host)) {
+    const resolved = await resolveShortLink(url);
+    if (resolved) url = resolved;
+  }
+  const res = await safeFetch(url);
   if (res.status >= 400) throw new Error(`网页抓取失败（HTTP ${res.status}）`);
   const content = extractFromHtml(res.text, res.finalUrl);
   return { ...content, url: rawUrl, finalUrl: res.finalUrl };

@@ -14,7 +14,7 @@ importers:
 
   apps/server:
     dependencies:
-      '@app/shared':
+      '@cairn/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@earendil-works/pi-agent-core':
@@ -69,7 +69,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@app/shared':
+      '@cairn/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       lucide-react:

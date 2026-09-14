@@ -6,7 +6,7 @@ import type {
   ItemDetail,
   ItemListResult,
   ItemType,
-} from '@app/shared';
+} from '@cairn/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -55,6 +55,16 @@ export const api = {
   },
 
   listTags: () => request<{ tag: string; count: number }[]>('/api/items/tags'),
+
+  importXBookmarks: (limit?: number) =>
+    request<{ imported: number; skipped: number; failed: number; total: number }>(
+      '/api/items/import/x-bookmarks',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(limit ? { limit } : {}),
+      },
+    ),
 
   getItem: (id: string) => request<ItemDetail>(`/api/items/${id}`),
 

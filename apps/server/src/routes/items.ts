@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import type { ItemDetail, ItemListResult, ItemType } from '@app/shared';
+import type { ItemDetail, ItemListResult, ItemType } from '@cairn/shared';
 import type { AppDb } from '../db.js';
+import { config } from '../config.js';
+import { fetchBookmarks, importBookmarks } from '../services/x-bookmarks.js';
 
 interface RouteDeps {
   db: AppDb;
@@ -26,6 +28,35 @@ export function createItemRoutes({ db }: RouteDeps): Hono {
 
   app.get('/tags', (c) => {
     return c.json(db.listTags());
+  });
+
+  /* ── X 书签一键导入 ─────────────────────────────────── */
+
+  // 防并发：一次导入可能翻几十页，重复点击直接拒绝
+  let importing = false;
+
+  app.post('/import/x-bookmarks', async (c) => {
+    if (importing) return c.json({ error: '书签导入正在进行中' }, 409);
+    if (!existsSync(config.xCookieFile)) {
+      return c.json(
+        {
+          error: `未找到 cookie 文件 ${path.basename(config.xCookieFile)}：请登录 x.com 后用浏览器扩展导出 cookie（EditThisCookie / Get cookies.txt 等），保存到仓库根目录后重试`,
+        },
+        400,
+      );
+    }
+    const body = await c.req.json<{ limit?: number }>().catch(() => null);
+    const limit = Math.max(1, Math.min(1000, Number(body?.limit) || 1000));
+    importing = true;
+    try {
+      const tweets = await fetchBookmarks(limit);
+      const result = importBookmarks(db, tweets);
+      return c.json(result);
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : '书签导入失败' }, 502);
+    } finally {
+      importing = false;
+    }
   });
 
   app.get('/:id', (c) => {

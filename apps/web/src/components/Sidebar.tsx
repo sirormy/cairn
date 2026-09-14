@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Inbox, MessageSquare, Plus, Sparkles, Trash } from 'lucide-react';
-import type { ConversationSummary } from '@app/shared';
+import type { ConversationSummary } from '@cairn/shared';
 import { api, notifyConversationsChanged } from '../lib/api';
 import { relativeTime } from '../lib/format';
 
@@ -48,7 +48,7 @@ export function Sidebar() {
         <span className="flex size-7 items-center justify-center rounded-lg bg-indigo-600 text-white">
           <Sparkles size={15} />
         </span>
-        <span className="text-sm font-semibold tracking-wide">收集箱</span>
+        <span className="text-sm font-semibold tracking-wide">Cairn</span>
       </div>
 
       <nav className="space-y-0.5 px-2">

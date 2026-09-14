@@ -6,7 +6,7 @@ import type {
   ChatSSE,
   ConversationDetail,
   ConversationSummary,
-} from '@app/shared';
+} from '@cairn/shared';
 import type { AppDb } from '../db.js';
 import type { AgentManager } from '../agent/manager.js';
 import { deriveTitle, normalizeHistory } from '../agent/normalize.js';

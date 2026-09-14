@@ -7,7 +7,7 @@ import {
   Star,
   Trash,
 } from 'lucide-react';
-import type { ItemDetail } from '@app/shared';
+import type { ItemDetail } from '@cairn/shared';
 import { Markdown } from '../components/Markdown';
 import { TagInput } from '../components/TagInput';
 import { TypeBadge } from '../components/TypeBadge';
